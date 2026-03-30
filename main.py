@@ -1,7 +1,9 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Form, File, UploadFile, Depends
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+from typing import Generator
 
 from models import Attendance
 
