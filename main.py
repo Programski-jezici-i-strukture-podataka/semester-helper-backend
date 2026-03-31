@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, Form, File, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 from typing import Generator
 
@@ -17,6 +17,12 @@ if not DATABASE_URL:
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
+)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False
 )
 
 app = FastAPI()
