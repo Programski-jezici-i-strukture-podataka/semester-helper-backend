@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, Form, File, UploadFile, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
@@ -19,6 +20,17 @@ engine = create_engine(
 )
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4200",                           # Angular dev
+        "https://semester-helper-frontend.vercel.app",     # production frontend
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
