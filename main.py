@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 from typing import Generator
 
-from models import Attendance
+from models import Base, Attendance
 
 load_dotenv()
 
@@ -37,6 +37,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 def root():
