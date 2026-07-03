@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 from typing import Generator
 
-from models import Base, Attendance
+from models import Base, Attendance, Student
+from csvhelper import parse_csv_binary_to_entities
+import csv
+import io
 
 load_dotenv()
 
@@ -91,4 +94,109 @@ async def upload_attendance(
     return {
         "message": "File stored successfully",
         "id": record.id,
+    }
+
+@app.post("/upload-student")
+async def upload_students(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    
+    students = parse_csv_binary_to_entities(file_bytes, Student)
+
+    db.add_all(students)
+    db.commit()
+
+    return {
+        "message": "File stored successfully",
+        "imported": len(students)
+    }
+
+@app.put("/upload-test-scores")
+async def upload_test_scores(
+    test: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    score_column_by_test = {
+        "T1": "t1_score",
+        "T2": "t2_score",
+        "T3": "t3_score",
+    }
+
+    test = test.upper()
+
+    if test not in score_column_by_test:
+        raise HTTPException(status_code=400, detail="Test must be T1, T2 or T3")
+
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+
+    content = await file.read()
+
+    try:
+        decoded = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded")
+
+    reader = csv.DictReader(io.StringIO(decoded))
+
+    required_columns = {"Broj indeksa", "Broj poena"}
+
+    if not reader.fieldnames or not required_columns.issubset(reader.fieldnames):
+        raise HTTPException(
+            status_code=400,
+            detail='CSV must contain columns: "Broj indeksa", "Broj poena"',
+        )
+
+    score_attr = score_column_by_test[test]
+
+    updated = 0
+    not_found = []
+    invalid_rows = []
+
+    for row_number, row in enumerate(reader, start=2):
+        student_id = row.get("Broj indeksa", "").strip()
+        points_raw = row.get("Broj poena", "").strip()
+
+        if not student_id:
+            invalid_rows.append({"row": row_number, "reason": "Missing Broj indeksa"})
+            continue
+
+        try:
+            points = int(points_raw)
+        except ValueError:
+            invalid_rows.append({
+                "row": row_number,
+                "student_id": student_id,
+                "reason": "Invalid Broj poena",
+            })
+            continue
+
+        student = db.query(Student).filter(Student.student_id == student_id).first()
+
+        if not student:
+            not_found.append(student_id)
+            continue
+
+        setattr(student, score_attr, points)
+        updated += 1
+
+    db.commit()
+
+    return {
+        "message": f"{test} scores uploaded",
+        "updated": updated,
+        "not_found": not_found,
+        "invalid_rows": invalid_rows,
     }
