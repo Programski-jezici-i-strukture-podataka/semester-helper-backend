@@ -1,10 +1,11 @@
 import os
-from fastapi import FastAPI, Form, File, UploadFile, Depends
+from fastapi import FastAPI, Form, File, UploadFile, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 from typing import Generator
+import logging
 
 from models import Base, Attendance, Student
 from csvhelper import parse_csv_binary_to_entities
@@ -132,12 +133,14 @@ async def upload_test_scores(
         "T1": "t1_score",
         "T2": "t2_score",
         "T3": "t3_score",
+        "PI1": "first_partial_score",
+        "PI2": "second_partial_score",
     }
 
     test = test.upper()
 
     if test not in score_column_by_test:
-        raise HTTPException(status_code=400, detail="Test must be T1, T2 or T3")
+        raise HTTPException(status_code=400, detail="Test must be T1, T2 or T3, PI1 or PI2")
 
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
@@ -151,12 +154,12 @@ async def upload_test_scores(
 
     reader = csv.DictReader(io.StringIO(decoded))
 
-    required_columns = {"Broj indeksa", "Broj poena"}
+    required_columns = ["Broj indeksa", "Broj poena"] if test == "T1" or test == "T2" or test == "T3" else ["indeks", "poeni"]
 
-    if not reader.fieldnames or not required_columns.issubset(reader.fieldnames):
+    if not reader.fieldnames or [col for col in required_columns if col not in reader.fieldnames]:
         raise HTTPException(
             status_code=400,
-            detail='CSV must contain columns: "Broj indeksa", "Broj poena"',
+            detail='CSV must contain columns: "Broj indeksa", "Broj poena" for Tests or "indeks", "poeni" for Partial exams',
         )
 
     score_attr = score_column_by_test[test]
@@ -166,8 +169,8 @@ async def upload_test_scores(
     invalid_rows = []
 
     for row_number, row in enumerate(reader, start=2):
-        student_id = row.get("Broj indeksa", "").strip()
-        points_raw = row.get("Broj poena", "").strip()
+        student_id = row.get(required_columns[0], "").strip()
+        points_raw = row.get(required_columns[1], "").strip()
 
         if not student_id:
             invalid_rows.append({"row": row_number, "reason": "Missing Broj indeksa"})
