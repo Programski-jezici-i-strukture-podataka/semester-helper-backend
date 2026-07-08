@@ -135,12 +135,13 @@ async def upload_test_scores(
         "T3": "t3_score",
         "PI1": "first_partial_score",
         "PI2": "second_partial_score",
+        "PR": "attendance_score",
     }
 
     test = test.upper()
 
     if test not in score_column_by_test:
-        raise HTTPException(status_code=400, detail="Test must be T1, T2 or T3, PI1 or PI2")
+        raise HTTPException(status_code=400, detail="Test must be T1, T2 or T3, PI1, PI2 or PR")
 
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
@@ -154,12 +155,12 @@ async def upload_test_scores(
 
     reader = csv.DictReader(io.StringIO(decoded))
 
-    required_columns = ["Broj indeksa", "Broj poena"] if test == "T1" or test == "T2" or test == "T3" else ["indeks", "poeni"]
+    required_columns = ["Broj indeksa", "Broj poena"] if test == "T1" or test == "T2" or test == "T3" or test == "PR" else ["indeks", "poeni"]
 
     if not reader.fieldnames or [col for col in required_columns if col not in reader.fieldnames]:
         raise HTTPException(
             status_code=400,
-            detail='CSV must contain columns: "Broj indeksa", "Broj poena" for Tests or "indeks", "poeni" for Partial exams',
+            detail='CSV must contain columns: "Broj indeksa", "Broj poena" for Tests and Attendance or "indeks", "poeni" for Partial exams',
         )
 
     score_attr = score_column_by_test[test]

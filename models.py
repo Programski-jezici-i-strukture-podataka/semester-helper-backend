@@ -30,3 +30,4 @@ class Student(Base):
     second_partial_score: Mapped[int | None] = mapped_column(Integer)
     which_tx: Mapped[str | None] = mapped_column(String(2))
     correct_tx: Mapped[int | None] = mapped_column(Integer)
+    attendance_score: Mapped[int | None] = mapped_column(Integer)
